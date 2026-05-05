@@ -47,8 +47,8 @@ See `docker-compose.yaml` for complete list of configurable options.
 
 ## 📂 Volumes
 
-- `./rootfs/config/standardnotes` - Data storage
-- `./rootfs/data/standardnotes` - Data storage
+- `./volumes/config/standardnotes` - Data storage
+- `./volumes/data/standardnotes` - Data storage
 
 ## 🔍 Logging
 
