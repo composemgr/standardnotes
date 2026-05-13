@@ -17,6 +17,8 @@ services:
     logging: *default-logging
     networks:
       - standardnotes
+      - proxy
+      - cloudflare
     ports:
       - "172.17.0.1:3000:3000"
     environment:
@@ -30,6 +32,8 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       AUTH_JWT_SECRET: ${APP_SECRET_KEY:-changeme_secret_key_min_32_chars}
       PUBLIC_FILES_SERVER_URL: http://${BASE_HOST_NAME:-localhost}:3125
+      CONTAINER_NAME: standardnotes-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
     volumes:
       - ./volumes/config/standardnotes:/config
       - ./volumes/data/standardnotes:/data
@@ -41,6 +45,22 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    labels:
+      - 'traefik.enable=true'
+      - 'cloudflare.enable=true'
+      - 'traefik.docker.network=proxy'
+      - 'cloudflare.service=http://standardnotes-app:3000'
+      - 'cloudflare.hostname=standardnotes.${CLOUDFLARE_ZONE_NAME:-}'
+      - 'traefik.http.routers.standardnotes-app.entrypoints=http'
+      - 'traefik.http.routers.standardnotes-app-secure.tls=true'
+      - 'traefik.http.routers.standardnotes-app.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.middlewares.standardnotes-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.standardnotes-app.middlewares=standardnotes-app-https-redirect'
+      - 'traefik.http.routers.standardnotes-app-secure.entrypoints=https'
+      - 'traefik.http.routers.standardnotes-app-secure.rule=Host($(${BASE_HOST_NAME:-$HOSTNAME}))'
+      - 'traefik.http.routers.standardnotes-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.standardnotes-app-secure.service=standardnotes-app'
+      - 'traefik.http.services.standardnotes-app.loadbalancer.server.port=3000'
 
   standardnotes-db:
     image: mariadb:latest
@@ -56,6 +76,7 @@ services:
       MYSQL_USER: ${DB_USER_NAME:-standardnotes}
       MYSQL_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
       MYSQL_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
+      CONTAINER_NAME: standardnotes-db
     volumes:
       - ./volumes/data/db/mariadb/standardnotes:/var/lib/mysql
     healthcheck:
@@ -72,6 +93,8 @@ services:
     logging: *default-logging
     networks:
       - standardnotes
+    environment:
+      CONTAINER_NAME: standardnotes-redis
     volumes:
       - ./volumes/data/redis/standardnotes:/data
     healthcheck:
@@ -84,3 +107,7 @@ networks:
   standardnotes:
     name: standardnotes
     external: false
+  proxy:
+    external: true
+  cloudflare:
+    external: true
