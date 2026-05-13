@@ -1,5 +1,6 @@
 # nginx proxy address - http://172.17.0.1:3000
 
+name: standardnotes
 x-logging: &default-logging
   driver: json-file
   options:
@@ -8,27 +9,78 @@ x-logging: &default-logging
 
 services:
   standardnotes:
-    image: standardnotes/standardnotes:latest
+    image: standardnotes/server:latest
+    pull_policy: always
     container_name: standardnotes-app
-    restart: unless-stopped
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
     logging: *default-logging
     networks:
       - standardnotes
     ports:
-      - "3000:3000"
+      - "172.17.0.1:3000:3000"
     environment:
       TZ: ${TZ:-America/New_York}
-      PUID: ${SERVICE_USER:-1000}
-      PGID: ${SERVICE_GROUP:-1000}
+      DB_HOST: standardnotes-db
+      DB_PORT: ${DB_PORT:-3306}
+      DB_DATABASE: ${DB_CREATE_DATABASE_NAME:-standardnotes}
+      DB_USERNAME: ${DB_USER_NAME:-standardnotes}
+      DB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      REDIS_HOST: standardnotes-redis
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      AUTH_JWT_SECRET: ${APP_SECRET_KEY:-changeme_secret_key_min_32_chars}
+      PUBLIC_FILES_SERVER_URL: http://${BASE_HOST_NAME:-localhost}:3125
     volumes:
       - ./volumes/config/standardnotes:/config
       - ./volumes/data/standardnotes:/data
+    depends_on:
+      - standardnotes-db
+      - standardnotes-redis
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  standardnotes-db:
+    image: mariadb:latest
+    pull_policy: always
+    container_name: standardnotes-db
+    restart: always
+    logging: *default-logging
+    networks:
+      - standardnotes
+    environment:
+      TZ: ${TZ:-America/New_York}
+      MYSQL_DATABASE: ${DB_CREATE_DATABASE_NAME:-standardnotes}
+      MYSQL_USER: ${DB_USER_NAME:-standardnotes}
+      MYSQL_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
+    volumes:
+      - ./volumes/data/db/mariadb/standardnotes:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  standardnotes-redis:
+    image: redis:alpine
+    pull_policy: always
+    container_name: standardnotes-redis
+    restart: always
+    logging: *default-logging
+    networks:
+      - standardnotes
+    volumes:
+      - ./volumes/data/redis/standardnotes:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
 
 networks:
   standardnotes:
+    name: standardnotes
     external: false
