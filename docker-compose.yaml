@@ -72,10 +72,10 @@ services:
       - standardnotes
     environment:
       TZ: ${TZ:-America/New_York}
-      MYSQL_DATABASE: ${DB_CREATE_DATABASE_NAME:-standardnotes}
-      MYSQL_USER: ${DB_USER_NAME:-standardnotes}
-      MYSQL_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
-      MYSQL_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
+      MARIADB_DATABASE: ${DB_CREATE_DATABASE_NAME:-standardnotes}
+      MARIADB_USER: ${DB_USER_NAME:-standardnotes}
+      MARIADB_PASSWORD: ${DB_USER_PASS:-changeme_db_password}
+      MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-changeme_admin_password}
       CONTAINER_NAME: standardnotes-db
     volumes:
       - ./volumes/data/db/mariadb/standardnotes:/var/lib/mysql
