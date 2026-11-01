@@ -1,0 +1,109 @@
+
+name: standardnotes
+x-logging: &default-logging
+  options:
+    max-size: '5m'
+    max-file: '1'
+  driver: json-file
+
+services:
+  app:
+    image: standardnotes/server:latest
+    container_name: standardnotes-app
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: ${BASE_HOST_NAME:-$HOSTNAME}
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: standardnotes-app
+      HOSTNAME: ${BASE_HOST_NAME:-$HOSTNAME}
+      DB_HOST: standardnotes-db
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_CREATE_DATABASE_NAME:-standardnotes}
+      DB_USERNAME: ${DB_USER_NAME:-standardnotes}
+      DB_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+      REDIS_HOST: standardnotes-redis
+      REDIS_PORT: 6379
+      AUTH_JWT_SECRET: ${APP_SECRET_KEY:-replace-with-a-random-32-byte-hex-string}
+      PUBLIC_FILES_SERVER_URL: http://${BASE_HOST_NAME:-$HOSTNAME}:${PUBLIC_FILES_SERVER_PORT:-3125}
+    volumes:
+      - './volumes/config/standardnotes:/config:z'
+      - './volumes/data/standardnotes:/data:z'
+    depends_on:
+      - standardnotes-db
+      - standardnotes-redis
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/healthcheck']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.docker.network=traefik'
+      - 'traefik.http.routers.standardnotes-app.entrypoints=http'
+      - 'traefik.http.routers.standardnotes-app.rule=Host(`${BASE_HOST_NAME:-$HOSTNAME}`)'
+      - 'traefik.http.routers.standardnotes-app.middlewares=standardnotes-app-https-redirect'
+      - 'traefik.http.middlewares.standardnotes-app-https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.routers.standardnotes-app-secure.entrypoints=https'
+      - 'traefik.http.routers.standardnotes-app-secure.rule=Host(`${BASE_HOST_NAME:-$HOSTNAME}`)'
+      - 'traefik.http.routers.standardnotes-app-secure.tls.certresolver=cloudflare'
+      - 'traefik.http.routers.standardnotes-app-secure.service=standardnotes-app'
+      - 'traefik.http.services.standardnotes-app.loadbalancer.server.port=3000'
+    networks:
+      - standardnotes
+      - traefik
+
+  standardnotes-db:
+    image: mariadb:latest
+    container_name: standardnotes-db
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: standardnotes-db
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: standardnotes-db
+      MARIADB_DATABASE: ${DB_CREATE_DATABASE_NAME:-standardnotes}
+      MARIADB_USER: ${DB_USER_NAME:-standardnotes}
+      MARIADB_PASSWORD: ${DB_USER_PASS:-replace-with-a-random-password}
+      MARIADB_ROOT_PASSWORD: ${DB_ADMIN_PASS:-replace-with-a-random-password}
+    volumes:
+      - './volumes/db/mariadb/standardnotes:/var/lib/mysql:z'
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - standardnotes
+
+  standardnotes-redis:
+    image: redis:alpine
+    container_name: standardnotes-redis
+    domainname: ${BASE_DOMAIN_NAME:-example.com}
+    hostname: standardnotes-redis
+    restart: always
+    pull_policy: always
+    logging: *default-logging
+    environment:
+      TZ: ${TZ:-America/New_York}
+      CONTAINER_NAME: standardnotes-redis
+    volumes:
+      - './volumes/db/redis/standardnotes:/data:z'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - standardnotes
+
+networks:
+  standardnotes:
+    name: standardnotes
+    external: false
+  traefik:
+    external: true
